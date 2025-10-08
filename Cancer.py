@@ -1,3 +1,7 @@
+# =========================
+# Streamlit Frontend (Online Calculator)
+# Run from terminal:  streamlit run <this_file>.py
+# =========================
 import streamlit as st
 import shap
 import matplotlib.pyplot as plt
@@ -29,7 +33,7 @@ st.markdown("""
 For research use only; not for clinical decision-making.*
 """)
 
-# ---------- Categorical mappings ----------
+# ---------- Categorical mappings (MUST match the encodings used during training) ----------
 FIGO_map = {
     "Carcinoma in situ": 0,
     "Stage I": 1,
@@ -47,7 +51,7 @@ RT_map = {
 LNM_map = {"Negative": 0, "Positive": 1}
 
 # ---------- Continuous inputs ----------
-Age = st.number_input("Age (years):", min_value=20, max_value=80, value=49, step=1)
+Age = st.number_input("Age (years):", min_value=24, max_value=80, value=49, step=1)
 RBC = st.number_input("RBC (10^12/L):", min_value=2.0, max_value=7.0, value=4.25, step=0.1, format="%.1f")
 Transverse_Diameter = st.number_input("Tumor transverse diameter (mm):", min_value=0.0, max_value=200.0, value=50.0, step=1.0, format="%.1f")
 
@@ -90,29 +94,26 @@ if st.button("Predict"):
             "Routine follow-up is suggested while monitoring key risk factors (FIGO stage, pelvic invasion, LNM)."
         )
 
-    # SHAP explanation
+    # SHAP single-case explanation (RandomForest + TreeExplainer)
     try:
         explainer = shap.TreeExplainer(model, feature_perturbation="interventional")
         shap_values = explainer.shap_values(X_user)
 
-        # Handle expected_value
+        # Handle expected_value/shap_values as list or array
         if isinstance(explainer.expected_value, (list, np.ndarray)):
             base_value = explainer.expected_value[1] if len(np.atleast_1d(explainer.expected_value)) > 1 \
                          else np.atleast_1d(explainer.expected_value)[0]
         else:
             base_value = explainer.expected_value
 
-        # Extract SHAP values for positive class
         if isinstance(shap_values, list):
-            shap_values_pos = shap_values[1]  # positive class
+            shap_values_pos = shap_values[1]  # take SHAP for positive class (1)
         else:
             shap_values_pos = shap_values
 
-        # ===== 单个样本 force plot =====
-        shap_values_single = shap_values_pos[0] 
         shap.force_plot(
             base_value,
-            shap_values_single,
+            shap_values_pos[0],
             X_user.iloc[0],
             matplotlib=True, show=False
         )
@@ -124,20 +125,5 @@ if st.button("Predict"):
         st.image("shap_force_rf_single.png",
                  caption="Feature contributions toward the predicted probability (Class = 1)")
 
-        # ===== 全局 beeswarm 图 =====
-        shap_values_all = explainer.shap_values(X_user)
-        if isinstance(shap_values_all, list):
-            shap_values_all = shap_values_all[1]
-
-        plt.figure()
-        shap.summary_plot(shap_values_all, X_user, plot_type="bar", show=False)
-        plt.tight_layout()
-        plt.savefig("shap_beeswarm_rf.png", dpi=600, bbox_inches='tight')
-        plt.close()
-
-        st.subheader("SHAP Summary Plot (single case shown as bar importance)")
-        st.image("shap_beeswarm_rf.png", caption="Relative importance of each feature for this prediction")
-
     except Exception as e:
         st.warning(f"SHAP plotting error: {e}")
-
