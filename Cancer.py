@@ -1,5 +1,5 @@
 # =========================
-# Streamlit Frontend (Online Calculator)
+# Streamlit Frontend (Random Forest)
 # Run from terminal:  streamlit run <this_file>.py
 # =========================
 import streamlit as st
@@ -18,13 +18,8 @@ model = load_model('RandomForest.pkl')
 
 # Feature names (must match the training data column names and order)
 feature_names = [
-    "Age",                  # continuous (years)
-    "RBC",                  # continuous (10^12/L)
-    "FIGO",                 # categorical (encoded as below)
-    "Transverse_Diameter",  # continuous (mm)
-    "Pelvic_Invasion",      # categorical (Negative/Positive)
-    "Radiotherapy",         # categorical (4 levels)
-    "LNM"                   # categorical (Negative/Positive)
+    "Age", "RBC", "FIGO", "Transverse_Diameter",
+    "Pelvic_Invasion", "Radiotherapy", "LNM"
 ]
 
 st.title("Cervical Adenocarcinoma — Survival Risk Calculator (Random Forest)")
@@ -33,90 +28,70 @@ st.markdown("""
 For research use only; not for clinical decision-making.*
 """)
 
-# ---------- Categorical mappings (MUST match the encodings used during training) ----------
-FIGO_map = {
-    "Carcinoma in situ": 0,
-    "Stage I": 1,
-    "Stage II": 2,
-    "Stage III": 3,
-    "Stage IV": 4
-}
-Pelvic_map = {"Negative": 0, "Positive": 1}
-RT_map = {
-    "No radiotherapy": 0,
-    "Definitive radiotherapy": 1,
-    "Postoperative radiotherapy": 2,
-    "Preoperative brachytherapy": 3
-}
-LNM_map = {"Negative": 0, "Positive": 1}
-
-# ---------- Continuous inputs ----------
+# ---------- Input ----------
 Age = st.number_input("Age (years):", min_value=24, max_value=80, value=49, step=1)
 RBC = st.number_input("RBC (10^12/L):", min_value=2.0, max_value=7.0, value=4.25, step=0.1, format="%.1f")
 Transverse_Diameter = st.number_input("Tumor transverse diameter (mm):", min_value=0.0, max_value=200.0, value=50.0, step=1.0, format="%.1f")
 
-# ---------- Categorical inputs ----------
+FIGO_map = {"Carcinoma in situ": 0, "Stage I": 1, "Stage II": 2, "Stage III": 3, "Stage IV": 4}
+Pelvic_map = {"Negative": 0, "Positive": 1}
+RT_map = {"No radiotherapy": 0, "Definitive radiotherapy": 1, "Postoperative radiotherapy": 2, "Preoperative brachytherapy": 3}
+LNM_map = {"Negative": 0, "Positive": 1}
+
 FIGO_label = st.selectbox("FIGO stage:", options=list(FIGO_map.keys()), index=1)
 Pelvic_label = st.selectbox("Pelvic wall invasion:", options=list(Pelvic_map.keys()), index=0)
 RT_label = st.selectbox("Radiotherapy (RT):", options=list(RT_map.keys()), index=0)
 LNM_label = st.selectbox("Lymph node metastasis (LNM):", options=list(LNM_map.keys()), index=0)
 
-# ---------- Encode categoricals ----------
 FIGO = FIGO_map[FIGO_label]
 Pelvic_Invasion = Pelvic_map[Pelvic_label]
 Radiotherapy = RT_map[RT_label]
 LNM = LNM_map[LNM_label]
 
-# ---------- Assemble single-sample DataFrame ----------
+# ---------- Assemble DataFrame ----------
 feature_values = [Age, RBC, FIGO, Transverse_Diameter, Pelvic_Invasion, Radiotherapy, LNM]
-X_user = pd.DataFrame([feature_values], columns=feature_names)
+X_user_df = pd.DataFrame([feature_values], columns=feature_names)
 
 # =========================
-# Prediction + SHAP single-case force plot
+# Prediction + SHAP
 # =========================
 if st.button("Predict"):
-    proba = model.predict_proba(X_user)[0]
+    proba = model.predict_proba(X_user_df)[0]
     pred_class = int(np.argmax(proba))
-    risk_prob = float(proba[1])  # assumes class "1" is the event/high-risk class
+    risk_prob = float(proba[1])
 
     st.subheader("Prediction")
     st.write(f"**Predicted Class (0 = Low risk, 1 = High risk):** {pred_class}")
     st.write(f"**Predicted Probability of Class 1:** {risk_prob:.3f}")
 
     if pred_class == 1:
-        st.info(
-            f"Model indicates higher risk (P(class=1) = {risk_prob*100:.1f}%). "
-            "Consider integrating with clinical staging and treatment plans, and intensify follow-up when appropriate."
-        )
+        st.info(f"Model indicates higher risk (P(class=1) = {risk_prob*100:.1f}%). "
+                "Consider integrating with clinical staging and treatment plans, and intensify follow-up when appropriate.")
     else:
-        st.info(
-            f"Model indicates relatively low risk (P(class=1) = {risk_prob*100:.1f}%). "
-            "Routine follow-up is suggested while monitoring key risk factors (FIGO stage, pelvic invasion, LNM)."
-        )
+        st.info(f"Model indicates relatively low risk (P(class=1) = {risk_prob*100:.1f}%). "
+                "Routine follow-up is suggested while monitoring key risk factors (FIGO stage, pelvic invasion, LNM).")
 
-    # SHAP single-case explanation (RandomForest + TreeExplainer)
+    # SHAP explanation
     try:
-        explainer = shap.TreeExplainer(model, feature_perturbation="interventional")
-        shap_values = explainer.shap_values(X_user)
+        explainer = shap.TreeExplainer(model)
+        shap_values = explainer.shap_values(X_user_df)
 
-        # 处理 expected_value
         if isinstance(explainer.expected_value, (list, np.ndarray)):
             base_value = explainer.expected_value[1] if len(np.atleast_1d(explainer.expected_value)) > 1 \
                          else np.atleast_1d(explainer.expected_value)[0]
         else:
             base_value = explainer.expected_value
 
-        # ✅ 取单个样本的一维向量
         if isinstance(shap_values, list):
-            shap_values_pos = shap_values[1][0].reshape(-1)
+            shap_values_pos = shap_values[1][0]   # class=1
         else:
-            shap_values_pos = shap_values[0].reshape(-1)
+            shap_values_pos = shap_values[0]
 
+        # ✅ 用 DataFrame 保证对齐
         shap.force_plot(
             base_value,
             shap_values_pos,
-            features=X_user.iloc[0].values,
-            feature_names=list(X_user.columns),
+            features=X_user_df,
             matplotlib=True, show=False
         )
         plt.tight_layout()
@@ -124,8 +99,26 @@ if st.button("Predict"):
         plt.close()
 
         st.subheader("SHAP Force Plot (single case)")
-        st.image("shap_force_rf_single.png",
-                 caption="Feature contributions toward the predicted probability (Class = 1)")
+        st.image("shap_force_rf_single.png", caption="Feature contributions toward predicted probability (Class = 1)")
 
     except Exception as e:
-        st.warning(f"SHAP plotting error: {e}")
+        st.warning(f"SHAP force plot error: {e}")
+        # fallback waterfall
+        try:
+            shap.plots._waterfall.waterfall_legacy(
+                shap.Explanation(
+                    values=shap_values_pos,
+                    base_values=base_value,
+                    data=X_user_df.iloc[0].values,
+                    feature_names=feature_names
+                )
+            )
+            plt.tight_layout()
+            plt.savefig("shap_waterfall_rf_single.png", dpi=600, bbox_inches='tight')
+            plt.close()
+
+            st.subheader("SHAP Waterfall Plot (fallback)")
+            st.image("shap_waterfall_rf_single.png", caption="Waterfall plot of SHAP contributions")
+
+        except Exception as e2:
+            st.warning(f"SHAP fallback plotting error: {e2}")
