@@ -97,29 +97,31 @@ if st.button("Predict"):
     # SHAP single-case explanation (RandomForest + TreeExplainer)
     try:
         explainer = shap.TreeExplainer(model, feature_perturbation="interventional")
-        shap_values = explainer.shap_values(X_user)
+shap_values = explainer.shap_values(X_user)
 
-        # Handle expected_value/shap_values as list or array
-        if isinstance(explainer.expected_value, (list, np.ndarray)):
-            base_value = explainer.expected_value[1] if len(np.atleast_1d(explainer.expected_value)) > 1 \
-                         else np.atleast_1d(explainer.expected_value)[0]
-        else:
-            base_value = explainer.expected_value
+# 处理 expected_value
+if isinstance(explainer.expected_value, (list, np.ndarray)):
+    base_value = explainer.expected_value[1] if len(np.atleast_1d(explainer.expected_value)) > 1 \
+                 else np.atleast_1d(explainer.expected_value)[0]
+else:
+    base_value = explainer.expected_value
 
-        if isinstance(shap_values, list):
-            shap_values_pos = shap_values[1]  # take SHAP for positive class (1)
-        else:
-            shap_values_pos = shap_values
+# ✅ 取单个样本的一维向量
+if isinstance(shap_values, list):
+    shap_values_pos = shap_values[1][0]
+else:
+    shap_values_pos = shap_values[0]
 
-        shap.force_plot(
-            base_value,
-            shap_values_pos[0],
-            X_user.iloc[0],
-            matplotlib=True, show=False
-        )
-        plt.tight_layout()
-        plt.savefig("shap_force_rf_single.png", dpi=600, bbox_inches='tight')
-        plt.close()
+shap.force_plot(
+    base_value,
+    shap_values_pos,
+    X_user.iloc[0],
+    matplotlib=True, show=False
+)
+plt.tight_layout()
+plt.savefig("shap_force_rf_single.png", dpi=600, bbox_inches='tight')
+plt.close()
+
 
         st.subheader("SHAP Force Plot (single case)")
         st.image("shap_force_rf_single.png",
@@ -127,3 +129,4 @@ if st.button("Predict"):
 
     except Exception as e:
         st.warning(f"SHAP plotting error: {e}")
+
