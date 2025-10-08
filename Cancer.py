@@ -98,17 +98,20 @@ if st.button("Predict"):
     try:
         explainer = shap.TreeExplainer(model, feature_perturbation="interventional")
         shap_values = explainer.shap_values(X_user)
+
         # 处理 expected_value
-    if isinstance(explainer.expected_value, (list, np.ndarray)):
-        base_value = explainer.expected_value[1] if len(np.atleast_1d(explainer.expected_value)) > 1 \
-        else np.atleast_1d(explainer.expected_value)[0]
-    else:
-        base_value = explainer.expected_value
+        if isinstance(explainer.expected_value, (list, np.ndarray)):
+            base_value = explainer.expected_value[1] if len(np.atleast_1d(explainer.expected_value)) > 1 \
+                         else np.atleast_1d(explainer.expected_value)[0]
+        else:
+            base_value = explainer.expected_value
+
         # ✅ 取单个样本的一维向量
-    if isinstance(shap_values, list):
-        shap_values_pos = shap_values[1][0]
-    else:
-        shap_values_pos = shap_values[0]
+        if isinstance(shap_values, list):
+            shap_values_pos = shap_values[1][0]
+        else:
+            shap_values_pos = shap_values[0]
+
         shap.force_plot(
             base_value,
             shap_values_pos,
