@@ -1,5 +1,5 @@
 # =========================
-# Streamlit Frontend (Random Forest)
+# Streamlit Frontend (Random Forest + SHAP waterfall)
 # Run from terminal:  streamlit run <this_file>.py
 # =========================
 import streamlit as st
@@ -16,7 +16,7 @@ def load_model(path='RandomForest.pkl'):
 
 model = load_model('RandomForest.pkl')
 
-# Feature names (must match the training data column names and order)
+# Feature names
 feature_names = [
     "Age", "RBC", "FIGO", "Transverse_Diameter",
     "Pelvic_Invasion", "Radiotherapy", "LNM"
@@ -53,7 +53,7 @@ feature_values = [Age, RBC, FIGO, Transverse_Diameter, Pelvic_Invasion, Radiothe
 X_user_df = pd.DataFrame([feature_values], columns=feature_names)
 
 # =========================
-# Prediction + SHAP
+# Prediction + SHAP waterfall plot
 # =========================
 if st.button("Predict"):
     proba = model.predict_proba(X_user_df)[0]
@@ -71,54 +71,35 @@ if st.button("Predict"):
         st.info(f"Model indicates relatively low risk (P(class=1) = {risk_prob*100:.1f}%). "
                 "Routine follow-up is suggested while monitoring key risk factors (FIGO stage, pelvic invasion, LNM).")
 
-    # SHAP explanation
+    # SHAP explanation (waterfall)
     try:
         explainer = shap.TreeExplainer(model)
         shap_values = explainer.shap_values(X_user_df)
 
-        if isinstance(explainer.expected_value, (list, np.ndarray)):
-            base_value = explainer.expected_value[1] if len(np.atleast_1d(explainer.expected_value)) > 1 \
-                         else np.atleast_1d(explainer.expected_value)[0]
-        else:
-            base_value = explainer.expected_value
-
+        # 取类别1的 SHAP 值
         if isinstance(shap_values, list):
-            shap_values_pos = shap_values[1][0]   # class=1
+            shap_values_pos = shap_values[1][0]
+            base_value = explainer.expected_value[1]
         else:
             shap_values_pos = shap_values[0]
+            base_value = explainer.expected_value
 
-        # ✅ 用 DataFrame 保证对齐
-        shap.force_plot(
-            base_value,
-            shap_values_pos,
-            features=X_user_df,
-            matplotlib=True, show=False
+        # 绘制 waterfall plot
+        shap.plots._waterfall.waterfall_legacy(
+            shap.Explanation(
+                values=shap_values_pos,
+                base_values=base_value,
+                data=X_user_df.iloc[0].values,
+                feature_names=feature_names
+            )
         )
         plt.tight_layout()
-        plt.savefig("shap_force_rf_single.png", dpi=600, bbox_inches='tight')
+        plt.savefig("shap_waterfall_rf_single.png", dpi=600, bbox_inches='tight')
         plt.close()
 
-        st.subheader("SHAP Force Plot (single case)")
-        st.image("shap_force_rf_single.png", caption="Feature contributions toward predicted probability (Class = 1)")
+        st.subheader("SHAP Waterfall Plot (single case)")
+        st.image("shap_waterfall_rf_single.png",
+                 caption="Feature contributions toward predicted probability (Class = 1)")
 
     except Exception as e:
-        st.warning(f"SHAP force plot error: {e}")
-        # fallback waterfall
-        try:
-            shap.plots._waterfall.waterfall_legacy(
-                shap.Explanation(
-                    values=shap_values_pos,
-                    base_values=base_value,
-                    data=X_user_df.iloc[0].values,
-                    feature_names=feature_names
-                )
-            )
-            plt.tight_layout()
-            plt.savefig("shap_waterfall_rf_single.png", dpi=600, bbox_inches='tight')
-            plt.close()
-
-            st.subheader("SHAP Waterfall Plot (fallback)")
-            st.image("shap_waterfall_rf_single.png", caption="Waterfall plot of SHAP contributions")
-
-        except Exception as e2:
-            st.warning(f"SHAP fallback plotting error: {e2}")
+        st.warning(f"SHAP plotting error: {e}")
