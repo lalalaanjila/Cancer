@@ -109,7 +109,7 @@ if st.button("Predict"):
             shap_values_pos = shap_values
 
         # ===== 单个样本 force plot =====
-        shap_values_single = shap_values_pos[0].ravel()
+        shap_values_single = shap_values_pos[0] 
         shap.force_plot(
             base_value,
             shap_values_single,
@@ -140,3 +140,4 @@ if st.button("Predict"):
 
     except Exception as e:
         st.warning(f"SHAP plotting error: {e}")
+
