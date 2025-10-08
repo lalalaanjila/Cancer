@@ -1,9 +1,8 @@
 # =========================
-# Streamlit Frontend (Random Forest + SHAP waterfall)
+# Streamlit Frontend (Random Forest, no SHAP)
 # Run from terminal:  streamlit run <this_file>.py
 # =========================
 import streamlit as st
-import shap
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -24,7 +23,7 @@ feature_names = [
 
 st.title("Cervical Adenocarcinoma — Survival Risk Calculator (Random Forest)")
 st.markdown("""
-*Enter seven variables (Age, RBC, FIGO stage, tumor transverse diameter, pelvic wall invasion, radiotherapy type, and lymph node metastasis) to obtain the model prediction and a SHAP-based single-case interpretation.  
+*Enter seven variables (Age, RBC, FIGO stage, tumor transverse diameter, pelvic wall invasion, radiotherapy type, and lymph node metastasis) to obtain the model prediction.  
 For research use only; not for clinical decision-making.*
 """)
 
@@ -53,7 +52,7 @@ feature_values = [Age, RBC, FIGO, Transverse_Diameter, Pelvic_Invasion, Radiothe
 X_user_df = pd.DataFrame([feature_values], columns=feature_names)
 
 # =========================
-# Prediction + SHAP waterfall plot
+# Prediction only
 # =========================
 if st.button("Predict"):
     proba = model.predict_proba(X_user_df)[0]
@@ -70,38 +69,3 @@ if st.button("Predict"):
     else:
         st.info(f"Model indicates relatively low risk (P(class=1) = {risk_prob*100:.1f}%). "
                 "Routine follow-up is suggested while monitoring key risk factors (FIGO stage, pelvic invasion, LNM).")
-
-    # SHAP explanation (waterfall)
-    # SHAP explanation (waterfall)
-try:
-    explainer = shap.TreeExplainer(model)
-    shap_values = explainer.shap_values(X_user_df)
-
-    # 取类别1的 SHAP 值
-    if isinstance(shap_values, list):
-        shap_values_pos = shap_values[1][0]
-        base_value = explainer.expected_value[1]
-    else:
-        shap_values_pos = shap_values[0]
-        base_value = explainer.expected_value
-
-    # ✅ 构造 Explanation：新版 SHAP 用 base_values
-    shap_exp = shap.Explanation(
-        values=shap_values_pos,
-        base_values=np.array([base_value]),  # 用 base_values 替代 expected_value
-        data=X_user_df.iloc[0].values,
-        feature_names=feature_names
-    )
-
-    shap.plots.waterfall(shap_exp, show=False)   # 用官方 waterfall，而不是 _legacy
-    plt.tight_layout()
-    plt.savefig("shap_waterfall_rf_single.png", dpi=600, bbox_inches='tight')
-    plt.close()
-
-    st.subheader("SHAP Waterfall Plot (single case)")
-    st.image("shap_waterfall_rf_single.png",
-             caption="Feature contributions toward predicted probability (Class = 1)")
-
-except Exception as e:
-    st.warning(f"SHAP plotting error: {e}")
-
