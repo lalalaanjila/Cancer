@@ -111,6 +111,7 @@ if st.button("Predict"):
             shap_values_pos = shap_values[1][0]
         else:
             shap_values_pos = shap_values[0]
+        shap_values_pos = np.array(shap_values_pos).flatten()
 
         shap.force_plot(
             base_value,
