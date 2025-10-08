@@ -116,7 +116,8 @@ if st.button("Predict"):
         shap.force_plot(
             base_value,
             shap_values_pos,
-            X_user.iloc[0],
+            features=X_user.iloc[0].values,
+            feature_names=list(X_user.columns),
             matplotlib=True, show=False
         )
         plt.tight_layout()
