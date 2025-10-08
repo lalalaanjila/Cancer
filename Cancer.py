@@ -16,7 +16,7 @@ def load_model(path='RandomForest.pkl'):
 
 model = load_model('RandomForest.pkl')
 
-# Feature names
+# Feature names (must match training order)
 feature_names = [
     "Age", "RBC", "FIGO", "Transverse_Diameter",
     "Pelvic_Invasion", "Radiotherapy", "LNM"
@@ -84,15 +84,16 @@ if st.button("Predict"):
             shap_values_pos = shap_values[0]
             base_value = explainer.expected_value
 
-        # 绘制 waterfall plot
-        shap.plots._waterfall.waterfall_legacy(
-            shap.Explanation(
-                values=shap_values_pos,
-                base_values=base_value,
-                data=X_user_df.iloc[0].values,
-                feature_names=feature_names
-            )
+        # 构造 Explanation 对象（新版 SHAP 用 base_values）
+        shap_exp = shap.Explanation(
+            values=shap_values_pos,
+            base_values=base_value,
+            data=X_user_df.iloc[0].values,
+            feature_names=feature_names
         )
+
+        # 绘制 waterfall 图
+        shap.plots._waterfall.waterfall_legacy(shap_exp)
         plt.tight_layout()
         plt.savefig("shap_waterfall_rf_single.png", dpi=600, bbox_inches='tight')
         plt.close()
