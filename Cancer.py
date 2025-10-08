@@ -108,10 +108,9 @@ if st.button("Predict"):
 
         # ✅ 取单个样本的一维向量
         if isinstance(shap_values, list):
-            shap_values_pos = shap_values[1][0]
+            shap_values_pos = shap_values[1][0].reshape(-1)
         else:
-            shap_values_pos = shap_values[0]
-        shap_values_pos = np.array(shap_values_pos).flatten()
+            shap_values_pos = shap_values[0].reshape(-1)
 
         shap.force_plot(
             base_value,
