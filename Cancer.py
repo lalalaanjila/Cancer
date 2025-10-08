@@ -29,7 +29,7 @@ st.markdown("""
 For research use only; not for clinical decision-making.*
 """)
 
-# ---------- Categorical mappings (MUST match the encodings used during training) ----------
+# ---------- Categorical mappings ----------
 FIGO_map = {
     "Carcinoma in situ": 0,
     "Stage I": 1,
@@ -90,26 +90,29 @@ if st.button("Predict"):
             "Routine follow-up is suggested while monitoring key risk factors (FIGO stage, pelvic invasion, LNM)."
         )
 
-    # SHAP single-case explanation (RandomForest + TreeExplainer)
+    # SHAP explanation
     try:
         explainer = shap.TreeExplainer(model, feature_perturbation="interventional")
         shap_values = explainer.shap_values(X_user)
 
-        # Handle expected_value/shap_values as list or array
+        # Handle expected_value
         if isinstance(explainer.expected_value, (list, np.ndarray)):
             base_value = explainer.expected_value[1] if len(np.atleast_1d(explainer.expected_value)) > 1 \
                          else np.atleast_1d(explainer.expected_value)[0]
         else:
             base_value = explainer.expected_value
 
+        # Extract SHAP values for positive class
         if isinstance(shap_values, list):
-            shap_values_pos = shap_values[1]  # take SHAP for positive class (1)
+            shap_values_pos = shap_values[1]  # positive class
         else:
             shap_values_pos = shap_values
 
+        # ===== 单个样本 force plot =====
+        shap_values_single = shap_values_pos[0].ravel()
         shap.force_plot(
             base_value,
-            shap_values_pos[0],
+            shap_values_single,
             X_user.iloc[0],
             matplotlib=True, show=False
         )
@@ -120,6 +123,20 @@ if st.button("Predict"):
         st.subheader("SHAP Force Plot (single case)")
         st.image("shap_force_rf_single.png",
                  caption="Feature contributions toward the predicted probability (Class = 1)")
+
+        # ===== 全局 beeswarm 图 =====
+        shap_values_all = explainer.shap_values(X_user)
+        if isinstance(shap_values_all, list):
+            shap_values_all = shap_values_all[1]
+
+        plt.figure()
+        shap.summary_plot(shap_values_all, X_user, plot_type="bar", show=False)
+        plt.tight_layout()
+        plt.savefig("shap_beeswarm_rf.png", dpi=600, bbox_inches='tight')
+        plt.close()
+
+        st.subheader("SHAP Summary Plot (single case shown as bar importance)")
+        st.image("shap_beeswarm_rf.png", caption="Relative importance of each feature for this prediction")
 
     except Exception as e:
         st.warning(f"SHAP plotting error: {e}")
